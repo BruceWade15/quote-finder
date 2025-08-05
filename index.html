@@ -438,42 +438,30 @@
     </div>
 
     <script>
-        // Quote database - simulated API responses
-        const quoteDatabase = {
+        // Google Custom Search API Configuration
+        // IMPORTANT: Replace these with your actual API credentials
+        const GOOGLE_API_KEY = 'AIzaSyC-wTX-dhfKpA5fS3S6QNBjqxNJ0JmSyvs ';
+        const SEARCH_ENGINE_ID = '648af8f74e79d4e2e';
+        const GOOGLE_API_URL = 'https://www.googleapis.com/customsearch/v1';
+
+        // Configuration for different quote types and sources
+        const QUOTE_SOURCES = {
+            humorous: ['funny quotes', 'humorous sayings', 'witty quotes', 'amusing quotes'],
+            serious: ['inspirational quotes', 'profound quotes', 'wisdom quotes', 'thoughtful quotes'],
+            business: ['business quotes', 'leadership quotes', 'professional quotes', 'corporate wisdom'],
+            casual: ['life quotes', 'everyday wisdom', 'simple quotes', 'casual sayings']
+        };
+
+        // Fallback quote database for demonstration (remove in production)
+        const fallbackQuotes = {
             leadership: [
                 { quote: "The way to get started is to quit talking and begin doing.", author: "Walt Disney", source: "Business Leadership", type: "business" },
                 { quote: "Leadership is not about being in charge. It's about taking care of those in your charge.", author: "Simon Sinek", source: "Leaders Eat Last", type: "serious" },
-                { quote: "A leader is one who knows the way, goes the way, and shows the way.", author: "John C. Maxwell", source: "The 21 Irrefutable Laws of Leadership", type: "business" },
-                { quote: "Management is doing things right; leadership is doing the right things.", author: "Peter Drucker", source: "The Effective Executive", type: "business" },
-                { quote: "I suppose leadership at one time meant muscles; but today it means getting along with people.", author: "Mahatma Gandhi", source: "Historical Records", type: "serious" }
+                { quote: "A leader is one who knows the way, goes the way, and shows the way.", author: "John C. Maxwell", source: "The 21 Irrefutable Laws of Leadership", type: "business" }
             ],
             innovation: [
                 { quote: "Innovation distinguishes between a leader and a follower.", author: "Steve Jobs", source: "Apple Inc.", type: "business" },
-                { quote: "The only way to make sense out of change is to plunge into it, move with it, and join the dance.", author: "Alan Watts", source: "Philosophy of Innovation", type: "serious" },
-                { quote: "If you're not failing every now and again, it's a sign you're not doing anything very innovative.", author: "Woody Allen", source: "Creative Thinking", type: "humorous" },
-                { quote: "Innovation is seeing what everybody has seen and thinking what nobody has thought.", author: "Albert Szent-Gyorgyi", source: "Scientific Discovery", type: "serious" },
-                { quote: "The best way to predict the future is to create it.", author: "Peter Drucker", source: "Management Theory", type: "business" }
-            ],
-            success: [
-                { quote: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill", source: "WWII Speeches", type: "serious" },
-                { quote: "The only impossible journey is the one you never begin.", author: "Tony Robbins", source: "Personal Development", type: "business" },
-                { quote: "Don't be afraid to give up the good to go for the great.", author: "John D. Rockefeller", source: "Business Philosophy", type: "business" },
-                { quote: "Success is walking from failure to failure with no loss of enthusiasm.", author: "Winston Churchill", source: "Leadership Quotes", type: "humorous" },
-                { quote: "The way to get started is to quit talking and begin doing.", author: "Walt Disney", source: "Disney Philosophy", type: "casual" }
-            ],
-            teamwork: [
-                { quote: "Alone we can do so little; together we can do so much.", author: "Helen Keller", source: "Inspirational Speeches", type: "serious" },
-                { quote: "Teamwork makes the dream work, but a vision becomes a nightmare when the leader has a big dream and a bad team.", author: "John C. Maxwell", source: "Teamwork Principles", type: "business" },
-                { quote: "Individual commitment to a group effort—that is what makes a team work, a company work, a society work, a civilization work.", author: "Vince Lombardi", source: "Sports Leadership", type: "serious" },
-                { quote: "Coming together is a beginning, staying together is progress, and working together is success.", author: "Henry Ford", source: "Industrial Leadership", type: "business" },
-                { quote: "If everyone is moving forward together, then success takes care of itself.", author: "Henry Ford", source: "Business Philosophy", type: "casual" }
-            ],
-            motivation: [
-                { quote: "The only way to do great work is to love what you do.", author: "Steve Jobs", source: "Stanford Commencement", type: "serious" },
-                { quote: "Your limitation—it's only your imagination.", author: "Unknown", source: "Motivational Sayings", type: "casual" },
-                { quote: "Don't watch the clock; do what it does. Keep going.", author: "Sam Levenson", source: "Time Management", type: "humorous" },
-                { quote: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt", source: "Inspirational Speeches", type: "serious" },
-                { quote: "It is during our darkest moments that we must focus to see the light.", author: "Aristotle", source: "Philosophy", type: "serious" }
+                { quote: "The only way to make sense out of change is to plunge into it, move with it, and join the dance.", author: "Alan Watts", source: "Philosophy of Innovation", type: "serious" }
             ]
         };
 
@@ -482,7 +470,7 @@
             searchQuotes();
         });
 
-        function searchQuotes() {
+        async function searchQuotes() {
             const formData = new FormData(document.getElementById('quoteForm'));
             const searchParams = {
                 speaker: formData.get('speaker'),
@@ -492,6 +480,20 @@
                 location: formData.get('location'),
                 length: formData.get('length')
             };
+
+            // Validate API credentials
+            if (GOOGLE_API_KEY === 'YOUR_GOOGLE_API_KEY_HERE' || SEARCH_ENGINE_ID === 'YOUR_SEARCH_ENGINE_ID_HERE') {
+                showError('Please configure your Google API credentials. See console for instructions.');
+                console.error('Google API Configuration Required:', {
+                    message: 'You need to replace GOOGLE_API_KEY and SEARCH_ENGINE_ID with your actual credentials',
+                    steps: [
+                        '1. Get API key from Google Cloud Console',
+                        '2. Create Custom Search Engine at https://cse.google.com/',
+                        '3. Replace the placeholder values in the code'
+                    ]
+                });
+                return;
+            }
 
             // Show results container and loading
             document.getElementById('resultsContainer').style.display = 'block';
@@ -504,34 +506,169 @@
             document.getElementById('searchSummary').textContent = 
                 `Searching for ${searchParams.quoteType} quotes about "${searchParams.keynoteTitle}" with keywords: ${searchParams.keywords}`;
 
-            // Simulate API call delay
-            setTimeout(() => {
-                try {
-                    const results = performSearch(searchParams);
-                    displayResults(results, searchParams);
-                } catch (error) {
-                    showError('An error occurred while searching for quotes. Please try again.');
-                } finally {
-                    document.getElementById('loadingDiv').style.display = 'none';
-                    document.getElementById('searchBtn').disabled = false;
-                }
-            }, 2000);
+            try {
+                const results = await performGoogleSearch(searchParams);
+                displayResults(results, searchParams);
+            } catch (error) {
+                console.error('Search error:', error);
+                showError('An error occurred while searching for quotes. Please check your API configuration and try again.');
+                
+                // Fallback to demo data if API fails
+                console.log('Falling back to demo data...');
+                const fallbackResults = performFallbackSearch(searchParams);
+                displayResults(fallbackResults, searchParams);
+            } finally {
+                document.getElementById('loadingDiv').style.display = 'none';
+                document.getElementById('searchBtn').disabled = false;
+            }
         }
 
-        function performSearch(params) {
+        async function performGoogleSearch(params) {
+            // Build search query
+            const quoteTerms = QUOTE_SOURCES[params.quoteType] || ['quotes'];
+            const keywords = params.keywords.split(',').map(k => k.trim()).join(' ');
+            const keynoteTerms = params.keynoteTitle.split(' ').slice(0, 3).join(' '); // Limit keynote terms
+            
+            // Construct search query
+            let searchQuery = `"${quoteTerms[0]}" ${keywords} ${keynoteTerms}`;
+            
+            // Add location if specified
+            if (params.location && params.location.trim()) {
+                searchQuery += ` ${params.location.trim()}`;
+            }
+
+            // Build API URL
+            const apiUrl = new URL(GOOGLE_API_URL);
+            apiUrl.searchParams.append('key', GOOGLE_API_KEY);
+            apiUrl.searchParams.append('cx', SEARCH_ENGINE_ID);
+            apiUrl.searchParams.append('q', searchQuery);
+            apiUrl.searchParams.append('num', '10'); // Get more results to filter
+            
+            console.log('Google API Search Query:', searchQuery);
+
+            // Make API call
+            const response = await fetch(apiUrl);
+            
+            if (!response.ok) {
+                throw new Error(`Google API error: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            console.log('Google API Response:', data);
+
+            // Process and extract quotes from search results
+            return processGoogleResults(data, params);
+        }
+
+        function processGoogleResults(data, params) {
+            const results = [];
+            
+            if (!data.items || data.items.length === 0) {
+                return results;
+            }
+
+            const lengthLimits = { short: 10, medium: 30, long: 50 };
+            const maxWords = lengthLimits[params.length];
+
+            data.items.forEach((item, index) => {
+                // Extract potential quotes from title and snippet
+                const text = `${item.title} ${item.snippet}`;
+                const quotes = extractQuotesFromText(text);
+                
+                quotes.forEach(quote => {
+                    const wordCount = quote.text.split(' ').length;
+                    
+                    // Filter by length
+                    if (wordCount <= maxWords) {
+                        results.push({
+                            quote: quote.text,
+                            author: quote.author || 'Unknown',
+                            source: item.displayLink || 'Web Search',
+                            url: item.link,
+                            relevanceScore: calculateRelevance(quote.text, params),
+                            originalSnippet: item.snippet
+                        });
+                    }
+                });
+            });
+
+            // Sort by relevance and return top 5
+            results.sort((a, b) => b.relevanceScore - a.relevanceScore);
+            return results.slice(0, 5);
+        }
+
+        function extractQuotesFromText(text) {
+            const quotes = [];
+            
+            // Pattern 1: Text in quotes with attribution
+            const quotedTextPattern = /"([^"]+)"\s*[-–—]\s*([^,\n]+)/g;
+            let match;
+            
+            while ((match = quotedTextPattern.exec(text)) !== null) {
+                quotes.push({
+                    text: match[1].trim(),
+                    author: match[2].trim()
+                });
+            }
+            
+            // Pattern 2: Simple quoted text
+            const simpleQuotePattern = /"([^"]{10,200})"/g;
+            while ((match = simpleQuotePattern.exec(text)) !== null) {
+                if (!quotes.some(q => q.text === match[1].trim())) {
+                    quotes.push({
+                        text: match[1].trim(),
+                        author: null
+                    });
+                }
+            }
+            
+            // Pattern 3: Common quote structures
+            const authorQuotePattern = /([A-Z][a-z]+\s+[A-Z][a-z]+):\s*"([^"]+)"/g;
+            while ((match = authorQuotePattern.exec(text)) !== null) {
+                quotes.push({
+                    text: match[2].trim(),
+                    author: match[1].trim()
+                });
+            }
+
+            return quotes;
+        }
+
+        function calculateRelevance(quoteText, params) {
+            let score = 0;
+            const searchTerms = (params.keywords + ' ' + params.keynoteTitle).toLowerCase().split(/[,\s]+/);
+            const quoteTextLower = quoteText.toLowerCase();
+            
+            searchTerms.forEach(term => {
+                if (term && quoteTextLower.includes(term)) {
+                    score += 1;
+                }
+            });
+
+            // Bonus for quote type matching
+            const typeKeywords = QUOTE_SOURCES[params.quoteType] || [];
+            typeKeywords.forEach(keyword => {
+                if (quoteTextLower.includes(keyword.toLowerCase())) {
+                    score += 0.5;
+                }
+            });
+
+            return score;
+        }
+
+        function performFallbackSearch(params) {
+            // Fallback to local database when API is not configured
             let allQuotes = [];
             
-            // Combine all quotes from database
-            Object.values(quoteDatabase).forEach(category => {
+            Object.values(fallbackQuotes).forEach(category => {
                 allQuotes = allQuotes.concat(category);
             });
 
-            // Filter by quote type
+            // Filter and process similar to original function
             let filteredQuotes = allQuotes.filter(quote => 
                 quote.type === params.quoteType || params.quoteType === 'casual'
             );
 
-            // Search by keywords and keynote title
             const searchTerms = (params.keywords + ' ' + params.keynoteTitle).toLowerCase().split(/[,\s]+/);
             
             filteredQuotes = filteredQuotes.map(quote => {
@@ -547,10 +684,6 @@
                 return { ...quote, relevanceScore };
             }).filter(quote => quote.relevanceScore > 0);
 
-            // Sort by relevance
-            filteredQuotes.sort((a, b) => b.relevanceScore - a.relevanceScore);
-
-            // Filter by length
             const lengthLimits = { short: 10, medium: 30, long: 50 };
             const maxWords = lengthLimits[params.length];
             
@@ -559,7 +692,7 @@
                 return wordCount <= maxWords;
             });
 
-            // Return top 5 results
+            filteredQuotes.sort((a, b) => b.relevanceScore - a.relevanceScore);
             return filteredQuotes.slice(0, 5);
         }
 
