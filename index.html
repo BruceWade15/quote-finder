@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quote Finder for Speakers</title>
+    <title>Quote Finder for Speakers ver 2</title>
     <style>
         * {
             margin: 0;
@@ -440,8 +440,8 @@
     <script>
         // Google Custom Search API Configuration
         // IMPORTANT: Replace these with your actual API credentials
-        const GOOGLE_API_KEY = 'AIzaSyC-wTX-dhfKpA5fS3S6QNBjqxNJ0JmSyvs';
-        const SEARCH_ENGINE_ID = '648af8f74e79d4e2e';
+        const GOOGLE_API_KEY = 'YOUR_GOOGLE_API_KEY_HERE';
+        const SEARCH_ENGINE_ID = 'YOUR_SEARCH_ENGINE_ID_HERE';
         const GOOGLE_API_URL = 'https://www.googleapis.com/customsearch/v1';
 
         // Configuration for different quote types and sources
@@ -524,135 +524,316 @@
         }
 
         async function performGoogleSearch(params) {
-            // Build search query
-            const quoteTerms = QUOTE_SOURCES[params.quoteType] || ['quotes'];
-            const keywords = params.keywords.split(',').map(k => k.trim()).join(' ');
-            const keynoteTerms = params.keynoteTitle.split(' ').slice(0, 3).join(' '); // Limit keynote terms
+            // Build more effective search queries
+            const keywords = params.keywords.split(',').map(k => k.trim()).filter(k => k.length > 0);
+            const keynoteWords = params.keynoteTitle.split(' ').filter(w => w.length > 2).slice(0, 2);
             
-            // Construct search query
-            let searchQuery = `"${quoteTerms[0]}" ${keywords} ${keynoteTerms}`;
-            
-            // Add location if specified
-            if (params.location && params.location.trim()) {
-                searchQuery += ` ${params.location.trim()}`;
+            // Create multiple search strategies
+            const searchQueries = [
+                `${keywords.join(' ')} quotes ${params.quoteType}`,
+                `"${keywords[0]}" quotes famous sayings`,
+                `${keynoteWords.join(' ')} inspirational quotes`,
+                `${params.quoteType} quotes about ${keywords.slice(0, 2).join(' ')}`
+            ];
+
+            // Try each search query until we get good results
+            for (let i = 0; i < searchQueries.length; i++) {
+                let searchQuery = searchQueries[i];
+                
+                // Add location if specified
+                if (params.location && params.location.trim()) {
+                    searchQuery += ` ${params.location.trim()}`;
+                }
+
+                console.log(`Trying search query ${i + 1}:`, searchQuery);
+
+                try {
+                    // Build API URL
+                    const apiUrl = new URL(GOOGLE_API_URL);
+                    apiUrl.searchParams.append('key', GOOGLE_API_KEY);
+                    apiUrl.searchParams.append('cx', SEARCH_ENGINE_ID);
+                    apiUrl.searchParams.append('q', searchQuery);
+                    apiUrl.searchParams.append('num', '10');
+                    
+                    // Make API call
+                    const response = await fetch(apiUrl);
+                    
+                    if (!response.ok) {
+                        console.error(`API Error for query ${i + 1}: ${response.status} ${response.statusText}`);
+                        continue;
+                    }
+
+                    const data = await response.json();
+                    console.log(`API Response for query ${i + 1}:`, data);
+
+                    // Process results
+                    const results = processGoogleResults(data, params, searchQuery);
+                    
+                    if (results.length > 0) {
+                        console.log(`Found ${results.length} results with query ${i + 1}`);
+                        return results;
+                    }
+                } catch (error) {
+                    console.error(`Error with search query ${i + 1}:`, error);
+                    continue;
+                }
             }
 
-            // Build API URL
-            const apiUrl = new URL(GOOGLE_API_URL);
-            apiUrl.searchParams.append('key', GOOGLE_API_KEY);
-            apiUrl.searchParams.append('cx', SEARCH_ENGINE_ID);
-            apiUrl.searchParams.append('q', searchQuery);
-            apiUrl.searchParams.append('num', '10'); // Get more results to filter
-            
-            console.log('Google API Search Query:', searchQuery);
-
-            // Make API call
-            const response = await fetch(apiUrl);
-            
-            if (!response.ok) {
-                throw new Error(`Google API error: ${response.status} ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            console.log('Google API Response:', data);
-
-            // Process and extract quotes from search results
-            return processGoogleResults(data, params);
+            // If no queries worked, return empty array
+            console.log('All search queries failed or returned no results');
+            return [];
         }
 
-        function processGoogleResults(data, params) {
+        function processGoogleResults(data, params, searchQuery) {
             const results = [];
             
             if (!data.items || data.items.length === 0) {
+                console.log('No items returned from Google API');
                 return results;
             }
+
+            console.log(`Processing ${data.items.length} items from Google API`);
 
             const lengthLimits = { short: 10, medium: 30, long: 50 };
             const maxWords = lengthLimits[params.length];
 
             data.items.forEach((item, index) => {
+                console.log(`Processing item ${index + 1}:`, {
+                    title: item.title,
+                    snippet: item.snippet?.substring(0, 100) + '...',
+                    link: item.link
+                });
+
                 // Extract potential quotes from title and snippet
-                const text = `${item.title} ${item.snippet}`;
-                const quotes = extractQuotesFromText(text);
+                const combinedText = `${item.title} ${item.snippet || ''}`;
+                const quotes = extractQuotesFromText(combinedText);
                 
-                quotes.forEach(quote => {
+                console.log(`Found ${quotes.length} potential quotes in item ${index + 1}`);
+
+                quotes.forEach((quote, qIndex) => {
                     const wordCount = quote.text.split(' ').length;
+                    console.log(`Quote ${qIndex + 1}: "${quote.text}" (${wordCount} words)`);
                     
                     // Filter by length
-                    if (wordCount <= maxWords) {
+                    if (wordCount <= maxWords && wordCount >= 3) { // Minimum 3 words
+                        const relevanceScore = calculateRelevance(quote.text, params);
+                        
                         results.push({
                             quote: quote.text,
                             author: quote.author || 'Unknown',
                             source: item.displayLink || 'Web Search',
                             url: item.link,
-                            relevanceScore: calculateRelevance(quote.text, params),
-                            originalSnippet: item.snippet
+                            relevanceScore: relevanceScore,
+                            searchQuery: searchQuery
                         });
+                        
+                        console.log(`Added quote with relevance score: ${relevanceScore}`);
+                    } else {
+                        console.log(`Quote filtered out: ${wordCount} words (max: ${maxWords})`);
                     }
                 });
+
+                // If no quotes found in structured format, try to extract meaningful sentences
+                if (quotes.length === 0 && item.snippet) {
+                    const sentences = extractMeaningfulSentences(item.snippet, params);
+                    sentences.forEach(sentence => {
+                        const wordCount = sentence.split(' ').length;
+                        if (wordCount <= maxWords && wordCount >= 5) {
+                            results.push({
+                                quote: sentence,
+                                author: 'Unknown',
+                                source: item.displayLink || 'Web Search',
+                                url: item.link,
+                                relevanceScore: calculateRelevance(sentence, params),
+                                searchQuery: searchQuery
+                            });
+                        }
+                    });
+                }
+            });
+
+            // Remove duplicates
+            const uniqueResults = [];
+            const seenQuotes = new Set();
+            
+            results.forEach(result => {
+                const quoteKey = result.quote.toLowerCase().trim();
+                if (!seenQuotes.has(quoteKey)) {
+                    seenQuotes.add(quoteKey);
+                    uniqueResults.push(result);
+                }
             });
 
             // Sort by relevance and return top 5
-            results.sort((a, b) => b.relevanceScore - a.relevanceScore);
-            return results.slice(0, 5);
+            uniqueResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
+            const topResults = uniqueResults.slice(0, 5);
+            
+            console.log(`Returning ${topResults.length} unique results`);
+            return topResults;
         }
 
         function extractQuotesFromText(text) {
             const quotes = [];
             
-            // Pattern 1: Text in quotes with attribution
-            const quotedTextPattern = /"([^"]+)"\s*[-–—]\s*([^,\n]+)/g;
+            // Clean up the text
+            text = text.replace(/\s+/g, ' ').trim();
+            
+            // Pattern 1: Text in quotes with attribution (various dash types)
+            const quotedWithAuthorPattern = /"([^"]{10,200})"\s*[-–—~]\s*([A-Za-z][^,\n\r]{2,50})/g;
             let match;
             
-            while ((match = quotedTextPattern.exec(text)) !== null) {
+            while ((match = quotedWithAuthorPattern.exec(text)) !== null) {
                 quotes.push({
                     text: match[1].trim(),
-                    author: match[2].trim()
+                    author: match[2].trim().replace(/^\s*by\s+/i, '')
                 });
             }
             
-            // Pattern 2: Simple quoted text
-            const simpleQuotePattern = /"([^"]{10,200})"/g;
-            while ((match = simpleQuotePattern.exec(text)) !== null) {
-                if (!quotes.some(q => q.text === match[1].trim())) {
+            // Pattern 2: Author: "Quote" format
+            const authorQuotePattern = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s*:\s*["']([^"']{10,200})["']/g;
+            while ((match = authorQuotePattern.exec(text)) !== null) {
+                if (!quotes.some(q => q.text === match[2].trim())) {
                     quotes.push({
-                        text: match[1].trim(),
+                        text: match[2].trim(),
+                        author: match[1].trim()
+                    });
+                }
+            }
+            
+            // Pattern 3: Simple quoted text (no author)
+            const simpleQuotePattern = /["']([^"']{15,200})["']/g;
+            while ((match = simpleQuotePattern.exec(text)) !== null) {
+                const quoteText = match[1].trim();
+                // Only add if it's not already found and looks like a meaningful quote
+                if (!quotes.some(q => q.text === quoteText) && looksLikeQuote(quoteText)) {
+                    quotes.push({
+                        text: quoteText,
                         author: null
                     });
                 }
             }
             
-            // Pattern 3: Common quote structures
-            const authorQuotePattern = /([A-Z][a-z]+\s+[A-Z][a-z]+):\s*"([^"]+)"/g;
-            while ((match = authorQuotePattern.exec(text)) !== null) {
-                quotes.push({
-                    text: match[2].trim(),
-                    author: match[1].trim()
-                });
+            // Pattern 4: "Quote" - Author format
+            const quoteAuthorPattern = /["']([^"']{10,200})["']\s*[-–—]\s*([A-Za-z][^,\n\r]{2,50})/g;
+            while ((match = quoteAuthorPattern.exec(text)) !== null) {
+                if (!quotes.some(q => q.text === match[1].trim())) {
+                    quotes.push({
+                        text: match[1].trim(),
+                        author: match[2].trim()
+                    });
+                }
             }
 
+            console.log(`Extracted ${quotes.length} quotes from text:`, quotes);
             return quotes;
+        }
+
+        function looksLikeQuote(text) {
+            // Check if text looks like a meaningful quote
+            const words = text.split(' ');
+            
+            // Too short or too long
+            if (words.length < 3 || words.length > 50) return false;
+            
+            // Contains common quote indicators
+            const quoteIndicators = [
+                'said', 'says', 'believe', 'think', 'life', 'success', 'work', 
+                'people', 'world', 'time', 'great', 'never', 'always', 'best',
+                'way', 'make', 'get', 'know', 'take', 'give'
+            ];
+            
+            const hasIndicator = quoteIndicators.some(indicator => 
+                text.toLowerCase().includes(indicator)
+            );
+            
+            // Avoid obvious non-quotes
+            const nonQuotePatterns = [
+                /^\d+/,  // Starts with number
+                /\$\d+/, // Contains price
+                /http/,  // Contains URL
+                /www\./,  // Contains website
+                /click here/i,
+                /read more/i,
+                /learn more/i
+            ];
+            
+            const isNonQuote = nonQuotePatterns.some(pattern => pattern.test(text));
+            
+            return hasIndicator && !isNonQuote;
+        }
+
+        function extractMeaningfulSentences(snippet, params) {
+            if (!snippet) return [];
+            
+            // Split into sentences
+            const sentences = snippet.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 10);
+            const meaningful = [];
+            
+            const keywords = params.keywords.toLowerCase().split(',').map(k => k.trim());
+            
+            sentences.forEach(sentence => {
+                // Check if sentence contains keywords and looks meaningful
+                const sentenceLower = sentence.toLowerCase();
+                const hasKeyword = keywords.some(keyword => sentenceLower.includes(keyword));
+                
+                if (hasKeyword && looksLikeQuote(sentence)) {
+                    meaningful.push(sentence);
+                }
+            });
+            
+            return meaningful;
         }
 
         function calculateRelevance(quoteText, params) {
             let score = 0;
-            const searchTerms = (params.keywords + ' ' + params.keynoteTitle).toLowerCase().split(/[,\s]+/);
             const quoteTextLower = quoteText.toLowerCase();
             
-            searchTerms.forEach(term => {
-                if (term && quoteTextLower.includes(term)) {
-                    score += 1;
+            // Keywords from user input
+            const keywords = params.keywords.toLowerCase().split(',').map(k => k.trim()).filter(k => k.length > 0);
+            const keynoteWords = params.keynoteTitle.toLowerCase().split(' ').filter(w => w.length > 2);
+            
+            // Check keyword matches
+            keywords.forEach(keyword => {
+                if (keyword && quoteTextLower.includes(keyword)) {
+                    score += 2; // Higher weight for direct keyword matches
+                }
+            });
+            
+            // Check keynote title words
+            keynoteWords.forEach(word => {
+                if (word && quoteTextLower.includes(word)) {
+                    score += 1.5;
                 }
             });
 
             // Bonus for quote type matching
             const typeKeywords = QUOTE_SOURCES[params.quoteType] || [];
             typeKeywords.forEach(keyword => {
-                if (quoteTextLower.includes(keyword.toLowerCase())) {
+                const keywordLower = keyword.toLowerCase();
+                if (quoteTextLower.includes(keywordLower.replace(' quotes', ''))) {
+                    score += 1;
+                }
+            });
+
+            // Bonus for common inspirational/motivational words
+            const inspirationalWords = [
+                'success', 'achieve', 'dream', 'goal', 'inspire', 'motivate', 
+                'leader', 'leadership', 'work', 'effort', 'dedication', 'passion',
+                'innovation', 'creative', 'think', 'believe', 'overcome', 'challenge'
+            ];
+            
+            inspirationalWords.forEach(word => {
+                if (quoteTextLower.includes(word)) {
                     score += 0.5;
                 }
             });
 
+            // Bonus for having an author (more credible)
+            if (params.author && params.author !== 'Unknown') {
+                score += 0.5;
+            }
+
+            console.log(`Relevance calculation for "${quoteText.substring(0, 50)}...": ${score}`);
             return score;
         }
 
